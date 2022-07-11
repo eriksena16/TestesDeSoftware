@@ -1,14 +1,9 @@
 ﻿using FluentValidation.Results;
 using NerdStore.Core.DomainObjects;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NerdStore.Vendas.Domain
 {
-    public class Pedido
+    public partial class Pedido : Entity, IAggregateRoot
     {
         protected Pedido()
         {
@@ -29,9 +24,10 @@ namespace NerdStore.Vendas.Domain
         public void CalcularValorDoPedido()
         {
             ValorTotal = PedidoItems.Sum(i => i.CalcularValor());
+            CalcularValorTotalDesconto();
         }
 
-        private bool PedidoItemExistente(PedidoItem pedidoItem)
+        public bool PedidoItemExistente(PedidoItem pedidoItem)
         {
             return _pedidoItems.Any(p => p.ProdutoId == pedidoItem.ProdutoId);
         }
@@ -108,74 +104,33 @@ namespace NerdStore.Vendas.Domain
         public void CalcularValorTotalDesconto()
         {
             decimal desconto = 0;
+            var valor = ValorTotal;
             if (!VoucherUtilizado) return;
 
             if (Voucher.TipoDescontoVoucher == TipoDescontoVoucher.Valor)
             {
                 if (Voucher.ValorDesconto.HasValue)
+                {
                     desconto = Voucher.ValorDesconto.Value;
+                    valor -= desconto;
+                }
+                    
             }
             else
             {
                 if (Voucher.PercentualDesconto.HasValue)
+                {
                     desconto = (ValorTotal * Voucher.PercentualDesconto.Value) / 100;
+                    valor -= desconto;
+                }
+                   
 
             }
-            ValorTotal -= desconto;
+            ValorTotal = valor < 0 ? 0 : valor;
             Desconto = desconto;
         }
 
-        public static class PedidoFactory
-        {
-            public static Pedido NovoPedidoRascunho(Guid clienteId)
-            {
-                var pedido = new Pedido
-                {
-                    ClienteId = clienteId
-                };
-                pedido.TornarRascunho();
-                return pedido;
-            }
-        }
 
-        public enum PedidosStatus
-        {
-            Rascunho = 0,
-            Iniciado = 1,
-            Pago = 2,
-            Entregue = 3,
-            Cancelado = 4
-        }
-
-
-    }
-
-    public class PedidoItem
-    {
-        public PedidoItem(Guid produtoId, string produtoNome, int quantidade, decimal valorUnitario)
-        {
-            if (quantidade < Pedido.MIN_UNIDADE_ITEM) throw new DomainException($"Minimo de {Pedido.MIN_UNIDADE_ITEM} unidades por produto.");
-
-            ProdutoId = produtoId;
-            ProdutoNome = produtoNome;
-            Quantidade = quantidade;
-            ValorUnitario = valorUnitario;
-        }
-
-        public Guid ProdutoId { get; set; }
-        public string ProdutoNome { get; set; }
-        public int Quantidade { get; set; }
-        public decimal ValorUnitario { get; set; }
-
-        internal void AdicionarUnidade(int unidade)
-        {
-            Quantidade += unidade;
-        }
-
-        internal decimal CalcularValor()
-        {
-            return Quantidade * ValorUnitario;
-        }
     }
 
 }
